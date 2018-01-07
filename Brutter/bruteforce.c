@@ -30,7 +30,7 @@ char * bruteforce(char *password, char *encrypted)
 
 	//Za³o¿enie: klucz sk³ada siê tylko ze znaków, które mo¿na wywo³aæ klawiatur¹
 	const int asciiMinIndex = 32;
-	const int asciiMaxIndex = 70;
+	const int asciiMaxIndex = 127;
 	const int charRange = asciiMaxIndex - asciiMinIndex;
 
 	char *charArray = malloc((sizeof(char) * (charRange + 1)));
@@ -61,33 +61,33 @@ char * bruteforce(char *password, char *encrypted)
 		#pragma omp parallel for shared(match)
 		for (int a = 0; a < alphabetLength; a++)
 		{
-			if (match == 0) 
+			#pragma omp flush(match)
+			if (match != 0)
 			{
-				printf("Thread: %d, count = %d, a = %d, match = %d\n", omp_get_thread_num(), count, a, match);
-				continue;
+				//printf("Thread: %d, count = %d, a = %d, match = %d\n", omp_get_thread_num(), count, a, match);
+
+				#pragma omp critical
+				{
+					key[pos] = charArray[a];
+
+
+					if (PRINT_ITERATION_OUTPUT)
+					{
+						printf("Thread: %d, key = %s\n", omp_get_thread_num(), key);
+					}
+
+					encrypt(password, key, encryptedResult);
+					match = strcmp(encrypted, encryptedResult);
+
+					if (match == 0)
+					{
+						//printf("Znaleziono klucz!\n");
+						strcpy(keyResult, key);
+					}
+				}
 			}
 
-			#pragma omp critical
-			{
-				key[pos] = charArray[a];
-				count++;
-
-				if (PRINT_ITERATION_OUTPUT)
-				{
-					printf("Thread: %d, key = %s\n", omp_get_thread_num(), key);
-				}
-
-				encrypt(password, key, encryptedResult);
-				match = strcmp(encrypted, encryptedResult);
-
-				if (match == 0)
-				{
-					printf("Znaleziono klucz!\n");
-					strcpy(keyResult, key);
-				}
-
-				#pragma omp flush(match)
-			}
+			count++;
 		}
 
 		if (match == 0)
