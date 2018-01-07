@@ -19,9 +19,9 @@ przy u¿yciu metody bruteforce
 
 //Parametry programu:
 const char PASSWORD[] = "pwd1234";
-const char SECRET_KEY[] = "!ABC";
+const char SECRET_KEY[] = "!A";
 const int MAX_KEY_LENGTH = 8;
-const int PRINT_ITERATION_OUTPUT = 0;
+const int PRINT_ITERATION_OUTPUT = 1;
 
 void printHeader()
 {
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 
 	Sleep(3000); // niech u¿ytkownik zobaczy pocz¹tkowy header!
 
-	if (PRINT_ITERATION_OUTPUT == 1)
+	if (PRINT_ITERATION_OUTPUT)
 	{
 		printf("Rozpoczynamy iterowanie w celu znalezienia klucza:\n");
 		Sleep(2000); // j.w.
@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
 	printf("Operacja zajela %.3f sekund.\n", seconds);
 
 	free(result);
+	return 0;
 }
 
 

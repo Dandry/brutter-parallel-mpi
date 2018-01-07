@@ -8,6 +8,7 @@ oraz dostosowany do bie¿¹cych potrzeb
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <omp.h>
 
 #include "crypter.h"
 #include "main.h"
@@ -18,6 +19,8 @@ char * bruteforce(char *password, char *encrypted)
 
 	size_t keySize = sizeof(char) * (MAX_KEY_LENGTH + 1);
 	char *key = malloc(keySize);
+	char *keyResult = malloc(keySize);
+
 	memset(key, '\0', keySize);
 
 	int n;
@@ -27,7 +30,7 @@ char * bruteforce(char *password, char *encrypted)
 
 	//Za³o¿enie: klucz sk³ada siê tylko ze znaków, które mo¿na wywo³aæ klawiatur¹
 	const int asciiMinIndex = 32;
-	const int asciiMaxIndex = 127;
+	const int asciiMaxIndex = 70;
 	const int charRange = asciiMaxIndex - asciiMinIndex;
 
 	char *charArray = malloc((sizeof(char) * (charRange + 1)));
@@ -48,28 +51,54 @@ char * bruteforce(char *password, char *encrypted)
 		max_perms += (unsigned long long)pow(alphabetLength, n);
 	}
 
+
+	omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(2); // Use 4 threads for all consecutive parallel regions
+
+	int match = -1;
 	while (count < max_perms) 
 	{
+		#pragma omp parallel for shared(match)
 		for (int a = 0; a < alphabetLength; a++)
 		{
-			key[pos] = charArray[a];
-			
-			if (PRINT_ITERATION_OUTPUT == 1)
+			if (match == 0) 
 			{
-				printf("%s\n", key);
+				printf("Thread: %d, count = %d, a = %d, match = %d\n", omp_get_thread_num(), count, a, match);
+				continue;
 			}
 
-			encrypt(password, key, encryptedResult);
-
-			if (strcmp(encrypted, encryptedResult) == 0)
+			#pragma omp critical
 			{
-				free(charArray);
-				free(encryptedResult);
-				return key;
-			}
+				key[pos] = charArray[a];
+				count++;
 
-			if (count++ >= max_perms) break;
+				if (PRINT_ITERATION_OUTPUT)
+				{
+					printf("Thread: %d, key = %s\n", omp_get_thread_num(), key);
+				}
+
+				encrypt(password, key, encryptedResult);
+				match = strcmp(encrypted, encryptedResult);
+
+				if (match == 0)
+				{
+					printf("Znaleziono klucz!\n");
+					strcpy(keyResult, key);
+				}
+
+				#pragma omp flush(match)
+			}
 		}
+
+		if (match == 0)
+		{
+			free(charArray);
+			free(encryptedResult);
+			free(key);
+			return keyResult;
+		}
+
+		if (count >= max_perms) break;
 
 		for (n = pos; n >= 0; n--) {
 			if (key[n] != charArray[alphabetLength - 1]) {
