@@ -19,7 +19,7 @@ przy u¿yciu metody bruteforce
 
 //Parametry programu:
 const char PASSWORD[] = "pwd1234";
-const char SECRET_KEY[] = "!ABCDE";
+const char SECRET_KEY[] = "!ABC";
 const int MAX_KEY_LENGTH = 8;
 const int PRINT_ITERATION_OUTPUT = 0;
 

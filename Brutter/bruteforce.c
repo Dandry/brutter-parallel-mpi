@@ -59,7 +59,7 @@ char * bruteforce(char *password, char *encrypted)
 				printf("%s\n", key);
 			}
 
-			decrypt(password, key, encryptedResult);
+			encrypt(password, key, encryptedResult);
 
 			if (strcmp(encrypted, encryptedResult) == 0)
 			{

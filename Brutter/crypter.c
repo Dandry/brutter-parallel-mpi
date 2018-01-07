@@ -20,7 +20,7 @@ void secretEncrypt(char *input, char *output)
 	encryptDecrypt(input, SECRET_KEY, output);
 }
 
-void decrypt(char *input, char *key, char *output)
+void encrypt(char *input, char *key, char *output)
 {
 	encryptDecrypt(input, key, output);
 }
