@@ -13,13 +13,14 @@ przy u¿yciu metody bruteforce
 #include <string.h>
 #include <windows.h>
 #include <time.h>
+#include <omp.h>
 
 #include "bruteforce.h"
 #include "crypter.h"
 
 //Parametry programu:
 const char PASSWORD[] = "pwd1234";
-const char SECRET_KEY[] = "!ABC";
+const char SECRET_KEY[] = "zABC";
 const char MAX_KEY_LENGTH = 8;
 const int PRINT_ITERATION_OUTPUT = 0;
 
@@ -42,21 +43,21 @@ int main(int argc, char *argv[])
 	printf("Otrzymane zaszyfrowane haslo: %s\n", encrypted);
 	printf("\n");
 
-	Sleep(3000); // niech u¿ytkownik zobaczy pocz¹tkowy header!
+	Sleep(2000); // niech u¿ytkownik zobaczy pocz¹tkowy header!
 
 	if (PRINT_ITERATION_OUTPUT)
 	{
 		printf("Rozpoczynamy iterowanie w celu znalezienia klucza:\n");
-		Sleep(2000); // j.w.
+		Sleep(1000); // j.w.
 	}
 	else
 	{
 		printf("(Wylaczono wyswietlanie iteracji lancucha znakow)\n");
 	}
 
-	clock_t start = clock();
+	double start_time = omp_get_wtime();
 	result = bruteforce(PASSWORD, encrypted);
-	clock_t end = clock();
+	double time = omp_get_wtime() - start_time;
 
 	if (result != NULL)
 	{
@@ -67,8 +68,7 @@ int main(int argc, char *argv[])
 		printf("Nie znaleziono klucza szyfrujacego!\n");
 	}
 
-	float seconds = (float)(end - start) / CLOCKS_PER_SEC;
-	printf("Operacja zajela %.3f sekund.\n", seconds);
+	printf("Operacja zajela %.3f sekund.\n", time);
 
 	//free(result);
 	return 0;

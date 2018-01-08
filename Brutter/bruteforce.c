@@ -16,10 +16,11 @@ oraz dostosowany do bie¿¹cych potrzeb
 char * bruteforce(char *password, char *encrypted) 
 {
 	char *encryptedResult = malloc(sizeof(char) * (strlen(password) + 1));
+	size_t keySize = sizeof(char) * (MAX_KEY_LENGTH + 1);
+	char *key = malloc(keySize);
+	char *keyResult = malloc(keySize);
 
-	char key[MAX_KEY_LENGTH];
-	char keyResult[MAX_KEY_LENGTH];
-	memset(key, '\0', sizeof(key));
+	memset(key, '\0', keySize);
 
 	int n;
 	int	pos = 0;
@@ -49,65 +50,90 @@ char * bruteforce(char *password, char *encrypted)
 		max_perms += (unsigned long long)pow(alphabetLength, n);
 	}
 
-
-	omp_set_dynamic(0);     // Explicitly disable dynamic teams
-	omp_set_num_threads(2); // Use 4 threads for all consecutive parallel regions
+	//omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(8); // Use 4 threads for all consecutive parallel regions
 
 	int match = 0;
-	while (count < max_perms)
-	//#pragma omp parallel
+	//while (count < max_perms)
+	#pragma omp parallel shared(count, match) firstprivate(key, encryptedResult) 
 	{
-		#pragma omp parallel for shared(match) firstprivate(key, encryptedResult)
-		for (int a = 0; a < alphabetLength; a++)
+		while (match != 1 && count < max_perms)
 		{
-			#pragma omp flush(match)
-			if (match == 0)
+			//printf("Kolejna iteracja - match = %d, count = %llu, max_perms = %llu\n", match, count, max_perms);
+			#pragma omp for ordered
+			for (int a = 0; a < alphabetLength; a++)
 			{
-				//printf("Thread: %d, count = %d, a = %d, match = %d\n", omp_get_thread_num(), count, a, match);
-				key[pos] = charArray[a];
-
-				if (PRINT_ITERATION_OUTPUT)
+				if (!match)
 				{
-					printf("Thread: %d, key = %s\n", omp_get_thread_num(), key);
+					key[pos] = charArray[a];
+
+					if (PRINT_ITERATION_OUTPUT)
+					{
+						#pragma omp critical
+						{
+							printf("Thread: %d, key = %s ", omp_get_thread_num(), key);
+							printf("pos = %d, count = %d, a = %d, match = %d\n", pos, count, a, match);
+						}
+					}
+
+					encrypt(password, key, encryptedResult);
+
+					if (strcmp(encrypted, encryptedResult) == 0)
+					{
+						#pragma omp atomic
+						match++;
+						/*#pragma omp critical 
+						{
+							printf("Znaleziono klucz! W¹tek: %d, a = %d, count = %d\n", omp_get_thread_num(), a, count);
+						}*/
+						
+						strcpy(keyResult, key);
+						#pragma omp flush(match)
+					}
 				}
 
-				encrypt(password, key, encryptedResult);
+				#pragma omp atomic
+				count++;
+			}
 
-				if (strcmp(encrypted, encryptedResult) == 0)
+			if (!match && count < max_perms)
+			{
+				#pragma omp single copyprivate(key)
 				{
-					match = 1;
-					printf("Znaleziono klucz! W¹tek: %d, a = %d, count = %d\n", omp_get_thread_num(), a, count);
-					strcpy(keyResult, key);
+					for (n = pos; n >= 0; n--) {
+						if (key[n] != charArray[alphabetLength - 1]) {
+							key[n]++;
+							break;
+						}
+						else {
+							if (n == 0) {
+								memset(key, (int)charArray[0], ++pos + 1);
+							/*	#pragma omp critical
+								{
+									printf("Watek = %d ustawil pos = %d\n", omp_get_thread_num(), pos);
+								}*/
+								break;
+							}
+							key[n] = charArray[0];
+						}
+					}
 				}
-			}
-
-			#pragma omp atomic
-			count++;
-		}
-
-		if (match)
-		{
-			free(charArray);
-			free(encryptedResult);
-			//free(key);
-			return keyResult;
-		}
-
-		if (count >= max_perms) break;
-
-		for (n = pos; n >= 0; n--) {
-			if (key[n] != charArray[alphabetLength - 1]) {
-				key[n]++;
-				break;
-			}
-			else {
-				if (n == 0) {
-					memset(key, (int)charArray[0], ++pos + 1);
-					break;
-				}
-				key[n] = charArray[0];
+				
 			}
 		}
+
+		
+		
+		//if (count >= max_perms) break;
+	}
+
+
+
+	if (match)
+	{
+		free(charArray);
+		free(encryptedResult);
+		return keyResult;
 	}
 
 	free(charArray);
