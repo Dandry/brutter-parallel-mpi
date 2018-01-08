@@ -90,6 +90,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <OpenMP>GenerateParallelCode</OpenMP>
+      <C99Support>true</C99Support>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

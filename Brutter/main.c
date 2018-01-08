@@ -20,7 +20,7 @@ przy u¿yciu metody bruteforce
 //Parametry programu:
 const char PASSWORD[] = "pwd1234";
 const char SECRET_KEY[] = "!ABC";
-const int MAX_KEY_LENGTH = 8;
+const char MAX_KEY_LENGTH = 8;
 const int PRINT_ITERATION_OUTPUT = 0;
 
 void printHeader()
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 	float seconds = (float)(end - start) / CLOCKS_PER_SEC;
 	printf("Operacja zajela %.3f sekund.\n", seconds);
 
-	free(result);
+	//free(result);
 	return 0;
 }
 

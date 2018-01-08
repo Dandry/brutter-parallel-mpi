@@ -17,11 +17,9 @@ char * bruteforce(char *password, char *encrypted)
 {
 	char *encryptedResult = malloc(sizeof(char) * (strlen(password) + 1));
 
-	size_t keySize = sizeof(char) * (MAX_KEY_LENGTH + 1);
-	char *key = malloc(keySize);
-	char *keyResult = malloc(keySize);
-
-	memset(key, '\0', keySize);
+	char key[MAX_KEY_LENGTH];
+	char keyResult[MAX_KEY_LENGTH];
+	memset(key, '\0', sizeof(key));
 
 	int n;
 	int	pos = 0;
@@ -55,46 +53,43 @@ char * bruteforce(char *password, char *encrypted)
 	omp_set_dynamic(0);     // Explicitly disable dynamic teams
 	omp_set_num_threads(2); // Use 4 threads for all consecutive parallel regions
 
-	int match = -1;
-	while (count < max_perms) 
+	int match = 0;
+	while (count < max_perms)
+	//#pragma omp parallel
 	{
-		#pragma omp parallel for shared(match)
+		#pragma omp parallel for shared(match) firstprivate(key, encryptedResult)
 		for (int a = 0; a < alphabetLength; a++)
 		{
 			#pragma omp flush(match)
-			if (match != 0)
+			if (match == 0)
 			{
 				//printf("Thread: %d, count = %d, a = %d, match = %d\n", omp_get_thread_num(), count, a, match);
+				key[pos] = charArray[a];
 
-				#pragma omp critical
+				if (PRINT_ITERATION_OUTPUT)
 				{
-					key[pos] = charArray[a];
+					printf("Thread: %d, key = %s\n", omp_get_thread_num(), key);
+				}
 
+				encrypt(password, key, encryptedResult);
 
-					if (PRINT_ITERATION_OUTPUT)
-					{
-						printf("Thread: %d, key = %s\n", omp_get_thread_num(), key);
-					}
-
-					encrypt(password, key, encryptedResult);
-					match = strcmp(encrypted, encryptedResult);
-
-					if (match == 0)
-					{
-						//printf("Znaleziono klucz!\n");
-						strcpy(keyResult, key);
-					}
+				if (strcmp(encrypted, encryptedResult) == 0)
+				{
+					match = 1;
+					printf("Znaleziono klucz! W¹tek: %d, a = %d, count = %d\n", omp_get_thread_num(), a, count);
+					strcpy(keyResult, key);
 				}
 			}
 
+			#pragma omp atomic
 			count++;
 		}
 
-		if (match == 0)
+		if (match)
 		{
 			free(charArray);
 			free(encryptedResult);
-			free(key);
+			//free(key);
 			return keyResult;
 		}
 
