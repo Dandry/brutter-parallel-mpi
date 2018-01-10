@@ -11,44 +11,53 @@ przy u¿yciu metody bruteforce
 
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
 #include <time.h>
 #include <omp.h>
+#include <windows.h>
 
 #include "bruteforce.h"
 #include "crypter.h"
 
 //Parametry programu:
 const char PASSWORD[] = "pwd1234";
-const char SECRET_KEY[] = "zABC";
-const char MAX_KEY_LENGTH = 8;
-const int PRINT_ITERATION_OUTPUT = 0;
 
-void printHeader()
+void printHeader();
+int checkCommandLineParams(int argc);
+void checkOMPCancellation(int argc, char *argv[]);
+
+
+//wywo³anie: Brutter [haslo_do_zaszyfrowania] [sekretny_klucz_szyfrowania] [pokaz_wyniki_iteracji(0/1)]
+int main(int argc, char *argv[])
 {
-	printf("############### Brutter v1.0 ###############\n");
-	printf("Autor: Daniel Andraszewski    \n");
-	printf("\n");
-}
-
-int main(int argc, char *argv[]) 
-{
-	char * result = NULL;
-	char encrypted[sizeof(PASSWORD)];
-
+	printf("argc = %d\n", argc);
+	printf("%s, %s, %s\n", argv[1], argv[2], argv[3]);
 	printHeader();
-	secretEncrypt(PASSWORD, encrypted);
+	if (checkCommandLineParams(argc) == 0) return 0;
+	checkOMPCancellation(argv[0], argv);
+	
+	Sleep(10000);
+	char *password = _strdup(argv[1]);
+	char *secretKey = _strdup(argv[2]);
 
-	printf("Zdefiniowane haslo: %s\n", PASSWORD);
+	printf("Copied pwd: %s\n", password);
+	printf("Copied sk: %s\n", secretKey);
+
+	int keyLength = strlen(secretKey);
+	int printIterationOutput = atoi(argv[3]);
+	char encrypted[strlen(password)];
+
+	encrypt(password, secretKey, encrypted);
+
+	printf("Zdefiniowane haslo: %s\n", password);
 	printf("Otrzymane zaszyfrowane haslo: %s\n", encrypted);
 	printf("\n");
 
-	Sleep(2000); // niech u¿ytkownik zobaczy pocz¹tkowy header!
+	Sleep(3000); // niech u¿ytkownik zobaczy pocz¹tkowy header!
 
-	if (PRINT_ITERATION_OUTPUT)
+	if (printIterationOutput)
 	{
 		printf("Rozpoczynamy iterowanie w celu znalezienia klucza:\n");
-		Sleep(1000); // j.w.
+		Sleep(2000); // j.w.
 	}
 	else
 	{
@@ -56,7 +65,7 @@ int main(int argc, char *argv[])
 	}
 
 	double start_time = omp_get_wtime();
-	result = bruteforce(PASSWORD, encrypted);
+	char *result = bruteforce(password, encrypted, keyLength, printIterationOutput);
 	double time = omp_get_wtime() - start_time;
 
 	if (result != NULL)
@@ -70,8 +79,35 @@ int main(int argc, char *argv[])
 
 	printf("Operacja zajela %.3f sekund.\n", time);
 
-	//free(result);
 	return 0;
 }
 
+void printHeader()
+{
+	printf("############### Brutter v1.0 ###############\n");
+	printf("Autor: Daniel Andraszewski    \n");
+	printf("\n");
+}
+
+int checkCommandLineParams(int argc)
+{
+	if (argc != 4)
+	{
+		printf("Niepoprawne parametry wywolania programu.\n");
+		printf("Wywolanie: Brutter [haslo_do_zaszyfrowania] [sekretny_klucz_szyfrowania] [pokaz_wyniki_iteracji(0/1)]\n");
+		return 0;
+	}
+
+	return 1;
+}
+
+void checkOMPCancellation(int argc, char *argv[])
+{
+	if (!omp_get_cancellation())
+	{
+		printf("Przerwania OMP (cancellations) s¹ wylaczone. Nast¹pi ich w³aczenie i ponowne wykonanie programu.\n");
+		_putenv("OMP_CANCELLATION=true");
+		execv(argv[0], argv);
+	}
+}
 
