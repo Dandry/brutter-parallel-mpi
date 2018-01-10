@@ -13,7 +13,7 @@ oraz dostosowany do bie¿¹cych potrzeb
 #include "crypter.h"
 #include "main.h"
 
-char * bruteforce(char *password, char *encrypted, int keyLength, int printIterationOutput)
+char * bruteforce(char *password, char *encrypted, int keyLength, int numOfThreads)
 {
 	size_t keySize = sizeof(char) * (keyLength + 1);
 
@@ -31,10 +31,14 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int printItera
 		max_perms += (unsigned long long)pow(alphabetLength, n);
 	}
 
-	//omp_set_dynamic(0);     // Explicitly disable dynamic teams
-	omp_set_num_threads(1); // Use 4 threads for all consecutive parallel regions
+	omp_set_dynamic(0);     // Explicitly disable dynamic teams
+	omp_set_num_threads(numOfThreads); // Use 4 threads for all consecutive parallel regions
 
-	printf("OMP max threads: %d, alphabetLength = %d, MAX_KEY_LENGTH = %d, max_perms = %lld\n", omp_get_max_threads(), alphabetLength, keyLength, max_perms);
+	if (DEBUG_MODE)
+	{
+		printf("OMP max threads: %d, alphabetLength = %d, MAX_KEY_LENGTH = %d, max_perms = %lld\n", omp_get_max_threads(), alphabetLength, keyLength, max_perms);
+	}
+	
 
 	#pragma omp parallel
 	{
@@ -44,7 +48,10 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int printItera
 		memset(key, '\0', keySize);
 		int pos = 0;
 
-		printf("Thread: %d starting\n", omp_get_thread_num());
+		if (DEBUG_MODE)
+		{
+			printf("Thread: %d starting\n", omp_get_thread_num());
+		}
 
 		#pragma omp for
 		for (unsigned long long count = 0; count < max_perms; count++)
@@ -56,16 +63,15 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int printItera
 				key[pos++] = (char)(tmp % alphabetLength) + asciiMinIndex;
 			}
 
-			if (printIterationOutput)
-			{
-				printf("Thread: %d, key = \"%s\", count = %lld\n", omp_get_thread_num(), key, count);
-			}
-
 			encrypt(password, key, encryptedResult);
 
 			if (strcmp(encrypted, encryptedResult) == 0)
 			{
-				printf("Thread: %d, key = \"%s\", count = %lld, FOUND!\n", omp_get_thread_num(), key, count);
+				if (DEBUG_MODE)
+				{
+					printf("Thread: %d, key = \"%s\", count = %lld, FOUND!\n", omp_get_thread_num(), key, count);
+				}
+				
 				#pragma omp atomic write
 				keyResult = _strdup(key);
 				#pragma omp cancel for
