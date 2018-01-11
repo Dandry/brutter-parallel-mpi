@@ -1,7 +1,7 @@
-/*
-Algorytm do generowania stringów na potrzeby metody brute force zaczerpniêty ze strony
+ï»¿/*
+Algorytm do generowania stringÃ³w na potrzeby metody brute force zaczerpniÄ™ty ze strony
 http://hacksenkessel.com/2014/brute-force-algorithm-in-c/, przepisany przeze mnie z C++ na C
-oraz dostosowany do bie¿¹cych potrzeb
+oraz dostosowany do bieÅ¼Ä…cych potrzeb
 */
 
 #include <stdio.h>
@@ -20,12 +20,12 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int numOfThrea
 	char* keyResult = NULL;
 	unsigned long long max_perms = 0;
 
-	//Za³o¿enie: klucz sk³ada siê tylko ze znaków, które mo¿na wywo³aæ klawiatur¹
+	//ZaÅ‚oÅ¼enie: klucz skÅ‚ada siÄ™ tylko ze znakÃ³w, ktÃ³re moÅ¼na wywoÅ‚aÄ‡ klawiaturÄ…
 	const int asciiMinIndex = 32; //' '
 	const int asciiMaxIndex = 126; //'~'
 	const int alphabetLength = asciiMaxIndex - asciiMinIndex + 1;
 
-	//iteracje opieraj¹ siê na maksymalnej liczbie permutacji tablicy z dopuszczalnymi znakami
+	//iteracje opierajÄ… siÄ™ na maksymalnej liczbie permutacji tablicy z dopuszczalnymi znakami
 	for (int n = 1; n <= keyLength; n++)
 	{
 		max_perms += (unsigned long long)pow(alphabetLength, n);

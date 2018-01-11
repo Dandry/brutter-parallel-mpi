@@ -1,11 +1,11 @@
-/*
+Ôªø/*
 ################## Brutter v1.0 ######################
 Autor: Daniel Andraszewski    
 Program na potrzeby z projektu przedmiotu
-Programowanie RÛwnoleg≥e i Rozproszone
+Programowanie R√≥wnoleg≈Çe i Rozproszone
 Politechnika Warszawska, 2017/2018
-Program do ≥amania has≥a zaszyfrowanego algorytmem XOR
-przy uøyciu metody bruteforce
+Program do ≈Çamania has≈Ça zaszyfrowanego algorytmem XOR
+przy u≈ºyciu metody bruteforce
 ######################################################
 */
 
@@ -24,7 +24,7 @@ void printHeader();
 int checkCommandLineParams(int argc);
 void checkOMPCancellation(int argc, char *argv[]);
 
-//wywo≥anie: Brutter [haslo_do_zaszyfrowania] [sekretny_klucz_szyfrowania] [ilosc_watkow]
+//wywo≈Çanie: Brutter [haslo_do_zaszyfrowania] [sekretny_klucz_szyfrowania] [ilosc_watkow]
 int main(int argc, char *argv[])
 {
 	if (checkCommandLineParams(argc) == 0) return 0;
