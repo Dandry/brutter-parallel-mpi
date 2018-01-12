@@ -31,8 +31,8 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int numOfThrea
 		max_perms += (unsigned long long)pow(alphabetLength, n);
 	}
 
-	omp_set_dynamic(0);     // Explicitly disable dynamic teams
-	omp_set_num_threads(numOfThreads); // Use 4 threads for all consecutive parallel regions
+	omp_set_dynamic(0); 
+	omp_set_num_threads(numOfThreads); 
 
 	if (DEBUG_MODE)
 	{
