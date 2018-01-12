@@ -43,6 +43,7 @@ int main(int argc, char *argv[])
 
 	printf("Zdefiniowane haslo: %s\n", password);
 	printf("Otrzymane zaszyfrowane haslo: %s\n", encrypted);
+	printf("Watki: %d\n", numOfThreads);
 	printf("\n");
 
 	if (DEBUG_MODE)
@@ -74,7 +75,7 @@ int main(int argc, char *argv[])
 void printHeader()
 {
 	printf("\n############### Brutter v1.0 ###############\n");
-	printf("Autor: Daniel Andraszewski    \n");
+	printf("Autor: Daniel Andraszewski\n");
 	printf("\n");
 }
 
