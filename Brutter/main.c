@@ -1,6 +1,6 @@
 ﻿/*
 ################## Brutter v1.0 ######################
-Autor: Daniel Andraszeski
+Autor: Daniel Andraszewski
 Program na potrzeby z projektu przedmiotu
 Programowanie Równoległe i Rozproszone
 Politechnika Warszawska, 2017/2018
