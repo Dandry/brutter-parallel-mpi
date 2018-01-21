@@ -2,6 +2,7 @@
 Algorytm szyfrowania XOR zaczerpnięty ze repozytorium https://github.com/KyleBanks/XOREncryption/tree/master/C.
 Uzupełniony o drobne poprawki z mojej strony
 */
+#include <string.h>
 
 #include "main.h"
 

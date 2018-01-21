@@ -20,73 +20,21 @@ przy użyciu metody bruteforce
 #include "crypter.h"
 
 //Diagnostic
-const int DEBUG_MODE = 0;
-
-//int main(int argc, char** argv) {
-//
-//	printf("PID : argc = %d\n", argc);
-//
-//	int ierr, procRank, worldSize;
-//	int rootStartNumber, rootEndNumber;
-//
-//	ierr = MPI_Init(&argc, &argv);
-//	ierr = MPI_Comm_rank(MPI_COMM_WORLD, &procRank);
-//	ierr = MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
-//
-//	if (procRank == 0)
-//	{
-//		int max_perms = 100;
-//
-//		printf("Tu proces %d, dokonuje podzialu zmiennej %d pomiedzy procesy w liczbie %d.\n", procRank, max_perms, worldSize);
-//		
-//		int minChuckSize = (int) round((double)max_perms / (double)worldSize);
-//		int startNumber = 0;
-//		int endNumber = 0;
-//		for (int i = 0; i < worldSize; i++)
-//		{
-//			endNumber += minChuckSize;
-//			if (i == 0)
-//			{
-//				rootStartNumber = startNumber;
-//				rootEndNumber = endNumber;
-//			}
-//			else 
-//			{
-//				if (i + 1 == worldSize)
-//				{
-//					endNumber = max_perms;
-//				}
-//				ierr = MPI_Send(&startNumber, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-//				ierr = MPI_Send(&endNumber, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-//			}
-//			startNumber = endNumber;
-//		}
-//	}
-//	else
-//	{
-//		MPI_Status status;
-//		ierr = MPI_Recv(&rootStartNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-//		ierr = MPI_Recv(&rootEndNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
-//	}
-//	printf("Proces %d dostal zakres od %d do %d\n", procRank, rootStartNumber, rootEndNumber);
-//	ierr = MPI_Finalize();
-//}
-
+const int DEBUG_MODE = 1;
 
 int checkCommandLineParams(int argc, int proc_id, int world_size);
 void printHeader();
 
-void sendDataToSlaves(void* data);
-void receiveDataFromMaster(void* data);
-
 //wywołanie: Brutter [haslo_do_zaszyfrowania] [sekretny_klucz_szyfrowania]
 int main(int argc, char *argv[])
 {
-	int ierr, proc_id, world_size;
+	const int root = 0;
+	int proc_id, world_size;
+	
 	//inicjalizacja MPI
-	ierr = MPI_Init(&argc, &argv);
-	ierr = MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
-	ierr = MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
 	//sprawdzenie parametrow wywolania programu i ewentualne zakonczenie
 	if (checkCommandLineParams(argc, proc_id, world_size) == 0)
@@ -95,16 +43,15 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 		
-	char *password = _strdup(argv[1]);
-	char *secretKey = _strdup(argv[2]);
-
+	char *password = strdup(argv[1]);
+	char *secretKey = strdup(argv[2]);
 	int keyLength = strlen(secretKey);
 	char encrypted[strlen(password)];
+	int encryptedSize;
 
-
-	if (proc_id == 0)
+	if (proc_id == root)
 	{
-		//printHeader();
+		printHeader();
 		encrypt(password, secretKey, encrypted);
 		printf("Zdefiniowane haslo: %s\n", password);
 		printf("Otrzymane zaszyfrowane haslo: %s\n", encrypted);
@@ -120,31 +67,32 @@ int main(int argc, char *argv[])
 			printf("Szukam...\n");
 			printf("\n");
 		}
-	}
-	else
-	{
 
+		encryptedSize = strlen(encrypted);
 	}
 
+	//przekazujemy rezultat szyfrowania niejawnym kluczem do wszystkich procesow, dlugosc encryted taka sama jak password
+	MPI_Bcast(&encrypted, strlen(password) + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+	//flaga okreslajaca dla kazdego procesu, czy znaleziono rozwiazanie
+	int resultExists = 0;
 	double start_time = MPI_Wtime();
-//	char *result = bruteforce(password, encrypted, keyLength, numOfThreads);
-	char *result = NULL;
+	char *result = bruteforce(password, encrypted, keyLength, &resultExists);
 	double time = MPI_Wtime() - start_time;
 
-	if (result != NULL)
+	if (resultExists != 0 && result != NULL)
 	{
-		printf("Znaleziono klucz szyfrujacy: %s\n", result);
+		//tylko jeden proces ma rozwiazanie i je wyswietla
+		printf("PID %d : Znaleziono klucz szyfrujacy: %s\n", proc_id, result);
+		printf("PID %d : Operacja zajela %.3f sekund.\n", proc_id, time);
 	}
-	else
+	else if (resultExists == 0)
 	{
+		//w przeciwnym wypadku nie znaleziono rozwiazania
 		printf("PID %d : Nie znaleziono klucza szyfrujacego!\n", proc_id);
 	}
-
-	printf("PID %d : Operacja zajela %.3f sekund.\n", proc_id, time);
 	
-	printf("PID %d : Konczy dzialanie.\n", proc_id);
-	
-	ierr = MPI_Finalize();
+	MPI_Finalize();
 	return 0;
 }
 
@@ -161,37 +109,15 @@ int checkCommandLineParams(int argc, int proc_id, int world_size)
 			printf("Niepoprawne parametry wywolania programu.\n");
 			printf("Wywolanie: Brutter [haslo_do_zaszyfrowania] [sekretny_klucz_szyfrowania]\n");
 		}
+	}
 
-		sendDataToSlaves(&cmd_params_valid);
-	}
-	else
-	{
-		receiveDataFromMaster(&cmd_params_valid);
-	}
-	
+	MPI_Bcast(&cmd_params_valid, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	return cmd_params_valid;
 }
 
 void printHeader()
 {
-	printf("\n############### Brutter v1.0 ###############\n");
+	printf("\n############### Brutter v3.0 ###############\n");
 	printf("Autor: Daniel Andraszewski\n");
 	printf("\n");
-}
-
-void sendDataToSlaves(void* data)
-{
-	int world_size;
-	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-	for (int i = 1; i < world_size; i++)
-	{
-		MPI_Send(data, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-	}
-}
-
-void receiveDataFromMaster(void* data)
-{
-	MPI_Status status;
-	MPI_Recv(data, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
 }

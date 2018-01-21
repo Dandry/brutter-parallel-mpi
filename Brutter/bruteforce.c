@@ -8,81 +8,110 @@ oraz dostosowany do bieżących potrzeb
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <omp.h>
+#include <mpi.h>
 
 #include "crypter.h"
 #include "main.h"
 
-char * bruteforce(char *password, char *encrypted, int keyLength, int numOfThreads)
+char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExist)
 {
-	size_t keySize = sizeof(char) * (keyLength + 1);
+	const int root = 0;
+	int proc_id, world_size;
+	int sizeUll = sizeof(unsigned long long);
 
+	MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	
+	size_t keySize = sizeof(char) * (keyLength + 1);
 	char* keyResult = NULL;
 	unsigned long long max_perms = 0;
 
 	//Założenie: klucz składa się tylko ze znaków, które można wywołać klawiaturą
 	const int asciiMinIndex = 32; //' '
-	const int asciiMaxIndex = 126; //'~'
+	const int asciiMaxIndex = 68; //'~'
 	const int alphabetLength = asciiMaxIndex - asciiMinIndex + 1;
 
-	//iteracje opierają się na maksymalnej liczbie permutacji tablicy z dopuszczalnymi znakami
-	for (int n = 1; n <= keyLength; n++)
+	unsigned long long procStartNmb, procEndNmb;
+
+	if (proc_id == root)
 	{
-		max_perms += (unsigned long long)pow(alphabetLength, n);
+		//iteracje opierają się na maksymalnej liczbie permutacji tablicy z dopuszczalnymi znakami
+		for (int n = 1; n <= keyLength; n++)
+		{
+			max_perms += (unsigned long long)pow(alphabetLength, n);
+		}
+
+		unsigned long long chunkSize = max_perms / (unsigned long long)world_size;
+		unsigned long long startNumber = 0;
+		unsigned long long endNumber = 0;
+
+		for (int i = 0; i < world_size; i++)
+		{
+			endNumber += chunkSize;
+			//printf("PID %d : endNumber =  %lld \n", proc_id, endNumber);
+
+			if (i == 0)
+			{
+				procStartNmb = startNumber;
+				procEndNmb = endNumber;
+			}
+			else 
+			{
+				MPI_Send(&startNumber, 1, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD);
+				MPI_Send(&endNumber, 1, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD);
+			}
+
+			startNumber = endNumber;
+		}
 	}
-
-	omp_set_dynamic(0); 
-	omp_set_num_threads(numOfThreads); 
-
-	if (DEBUG_MODE)
+	else
 	{
-		printf("OMP max threads: %d, alphabetLength = %d, MAX_KEY_LENGTH = %d, max_perms = %lld\n", omp_get_max_threads(), alphabetLength, keyLength, max_perms);
+		MPI_Status status;
+		MPI_Recv(&procStartNmb, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(&procEndNmb, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
 	}
 	
+	//na tym etapie każdy z procesów wie juz, jaki zakres ma do iteracji
+	char *encryptedResult = malloc(sizeof(char) * (strlen(password) + 1));
+	char *key = malloc(keySize);
+	memset(key, '\0', keySize);
 
-	#pragma omp parallel
+	int localStop = 0;
+	int globalStop;
+	
+	for (unsigned long long count = procStartNmb; count < procEndNmb; count++)
 	{
-		char *encryptedResult = malloc(sizeof(char) * (strlen(password) + 1));
-		char *key = malloc(keySize);
+		MPI_Request request;
+		int did_recv = 0;
+		MPI_Iallreduce(&localStop, &globalStop, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, &request);
+		MPI_Test(&request, &did_recv, MPI_STATUS_IGNORE);
 
-		memset(key, '\0', keySize);
+		if (globalStop) break;
+
 		int pos = 0;
-
-		if (DEBUG_MODE)
+		for (unsigned long long tmp = count + 1; tmp > 0 && pos < keyLength; tmp /= (unsigned long long)alphabetLength)
 		{
-			printf("Thread: %d starting\n", omp_get_thread_num());
+			key[pos++] = (char)(tmp % alphabetLength) + asciiMinIndex;
 		}
 
-		#pragma omp for
-		for (unsigned long long count = 0; count < max_perms; count++)
+		encrypt(password, key, encryptedResult);
+
+		if (strcmp(encrypted, encryptedResult) == 0)
 		{
-			int pos = 0;
-			unsigned long long tmp = count + 1;
-			for (unsigned long long tmp = count + 1; tmp > 0; tmp /= (unsigned long long)alphabetLength)
+			if (DEBUG_MODE)
 			{
-				key[pos++] = (char)(tmp % alphabetLength) + asciiMinIndex;
+				printf("PID: %d, key = \"%s\", count = %lld, FOUND!\n", proc_id, key, count);
 			}
 
-			encrypt(password, key, encryptedResult);
-
-			if (strcmp(encrypted, encryptedResult) == 0)
-			{
-				if (DEBUG_MODE)
-				{
-					printf("Thread: %d, key = \"%s\", count = %lld, FOUND!\n", omp_get_thread_num(), key, count);
-				}
-				
-				#pragma omp atomic write
-				keyResult = _strdup(key);
-				#pragma omp cancel for
-			}
-
-			#pragma omp cancellation point for
+			localStop = 1;
+			keyResult = strdup(key);
+			break;
 		}
-
-		free(encryptedResult);
-		free(key);
 	}
 
+	free(encryptedResult);
+	free(key);
+
+	*resultExist = globalStop;
 	return keyResult;
 }
