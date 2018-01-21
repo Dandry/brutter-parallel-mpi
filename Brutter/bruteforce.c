@@ -81,12 +81,10 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExi
 	
 	for (unsigned long long count = procStartNmb; count < procEndNmb; count++)
 	{
-		MPI_Request request;
-		int did_recv = 0;
-		MPI_Iallreduce(&localStop, &globalStop, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, &request);
-		MPI_Test(&request, &did_recv, MPI_STATUS_IGNORE);
+		//printf("PID: %d, tu jestem!\n", proc_id);
+		if (globalStop == 1) break;
 
-		if (globalStop) break;
+		//printf("PID: %d, tu jestem!\n", proc_id);
 
 		int pos = 0;
 		for (unsigned long long tmp = count + 1; tmp > 0 && pos < keyLength; tmp /= (unsigned long long)alphabetLength)
@@ -95,6 +93,8 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExi
 		}
 
 		encrypt(password, key, encryptedResult);
+
+		//printf("PID: %d, key = %s\n", proc_id, key);
 
 		if (strcmp(encrypted, encryptedResult) == 0)
 		{
@@ -107,6 +107,11 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExi
 			keyResult = strdup(key);
 			break;
 		}
+
+		MPI_Request request;
+		int did_recv = 0;
+		MPI_Iallreduce(&localStop, &globalStop, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, &request);
+		MPI_Test(&request, &did_recv, MPI_STATUS_IGNORE);
 	}
 
 	free(encryptedResult);
