@@ -43,6 +43,7 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultPro
 	memset(key, '\0', keySize);
 
 	//ustawiamy nieblokujacy listener dla kazdego procesu, jezeli ktorys znajdzie rozwiazanie, przerwie innym petle
+	int localStop;
 	int globalStop;
 	MPI_Request request;
 	MPI_Irecv(resultProcId, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &request);
@@ -78,15 +79,20 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultPro
 				printf("PID: %d, key = \"%s\", count = %lld, FOUND!\n", proc_id, key, count);
 			}
 
-			int localStop = 1;
+			localStop = 1;
 			keyResult = strdup(key);
 			
 			//proces, ktory znalazl rozwiazanie, wysyla komunikat do wszystkich (w tym do siebie), zeby zaprzestac iteracji
 			sendTerminateMsg(proc_id, world_size);
 		}
 
-		//kazdy proces sprawdza, czy dostal informacje o ewentualnym przerwaniu petli
-		MPI_Test(&request, &globalStop, MPI_STATUS_IGNORE);
+		//kazdy proces sprawdza, czy dostal informacje o ewentualnym przerwaniu petli co okreslona liczbe iteracji
+		//zeby proces, ktory znalazl rozwiazanie nie iterowal dalej, ustawia flage localStop
+		if (count % 1000 == 0 || localStop == 1)
+		{
+			MPI_Test(&request, &globalStop, MPI_STATUS_IGNORE);
+		}
+		
 	}
 
 	free(encryptedResult);
