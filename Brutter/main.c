@@ -20,7 +20,7 @@ przy użyciu metody bruteforce
 #include "crypter.h"
 
 //Diagnostic
-const int DEBUG_MODE = 1;
+const int DEBUG_MODE = 0;
 
 int checkCommandLineParams(int argc, int proc_id, int world_size);
 void printHeader();
@@ -71,27 +71,38 @@ int main(int argc, char *argv[])
 		encryptedSize = strlen(encrypted);
 	}
 
-	//przekazujemy rezultat szyfrowania niejawnym kluczem do wszystkich procesow, dlugosc encryted taka sama jak password
+	//przekazujemy rezultat szyfrowania niejawnym kluczem do wszystkich procesow ale o jakiej dlugosci?
+	//nie musimy wywolywac MPI_Probe bo wiemy, ze dlugosc strlen(encrypted) == strlen(password)
 	MPI_Bcast(&encrypted, strlen(password) + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
 
-	//flaga okreslajaca dla kazdego procesu, czy znaleziono rozwiazanie
-	int resultExists = 0;
+	//zmienna okresla id procesu, ktory znalazl rozwiazanie
+	int resultProcId = -1;
 	double start_time = MPI_Wtime();
-	char *result = bruteforce(password, encrypted, keyLength, &resultExists);
+	char *result = bruteforce(password, encrypted, keyLength, &resultProcId);
 	double time = MPI_Wtime() - start_time;
 
-	if (resultExists != 0 && result != NULL)
+	if (DEBUG_MODE)
 	{
-		//tylko jeden proces ma rozwiazanie i je wyswietla
-		printf("PID %d : Znaleziono klucz szyfrujacy: %s\n", proc_id, result);
-		printf("PID %d : Operacja zajela %.3f sekund.\n", proc_id, time);
+		printf("PID %d : resultProcId = %d\n", proc_id, resultProcId);
 	}
-	else if (resultExists == 0)
+
+	//niech wszystkie procesy tutaj sie zsynchronizuja, wtedy wiadomo bedzie, czy znaleziono rozwiazanie i ktory proces je ma
+	MPI_Barrier(MPI_COMM_WORLD);
+	if (resultProcId >= 0)
 	{
-		//w przeciwnym wypadku nie znaleziono rozwiazania
+		//jest rozwiazanie, resultProcId to rank procesu, ktory je ma i on wyswietla komunikat
+		if (resultProcId == proc_id)
+		{
+			printf("PID %d : Znaleziono klucz szyfrujacy: %s\n", proc_id, result);
+			printf("PID %d : Operacja zajela %.3f sekund.\n", proc_id, time);
+		}
+	}
+	else if (proc_id == root)
+	{
+		//w przeciwnym wypadku tylko root wyswietla komunikat o nieznalezieniu rezultatu
 		printf("PID %d : Nie znaleziono klucza szyfrujacego!\n", proc_id);
 	}
-	
+
 	MPI_Finalize();
 	return 0;
 }

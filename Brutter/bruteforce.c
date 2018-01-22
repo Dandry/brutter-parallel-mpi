@@ -13,7 +13,10 @@ oraz dostosowany do bieżących potrzeb
 #include "crypter.h"
 #include "main.h"
 
-char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExist)
+void assignPermsRangeToProcs(int alphabetLength, int keyLength, unsigned long long *procStartNmb, unsigned long long *procEndNmb);
+void sendTerminateMsg(int proc_id, int world_size);
+
+char * bruteforce(char *password, char *encrypted, int keyLength, int *resultProcId)
 {
 	const int root = 0;
 	int proc_id, world_size;
@@ -28,13 +31,83 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExi
 
 	//Założenie: klucz składa się tylko ze znaków, które można wywołać klawiaturą
 	const int asciiMinIndex = 32; //' '
-	const int asciiMaxIndex = 68; //'~'
+	const int asciiMaxIndex = 126; //'~'
 	const int alphabetLength = asciiMaxIndex - asciiMinIndex + 1;
 
 	unsigned long long procStartNmb, procEndNmb;
+	assignPermsRangeToProcs(alphabetLength, keyLength, &procStartNmb, &procEndNmb);
+
+	//na tym etapie każdy z procesów wie juz, jaki zakres ma do iteracji
+	char *encryptedResult = malloc(sizeof(char) * (strlen(password) + 1));
+	char *key = malloc(keySize);
+	memset(key, '\0', keySize);
+
+	//ustawiamy nieblokujacy listener dla kazdego procesu, jezeli ktorys znajdzie rozwiazanie, przerwie innym petle
+	int globalStop;
+	MPI_Request request;
+	MPI_Irecv(resultProcId, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &request);
+	
+	if (DEBUG_MODE)
+	{
+		printf("PID %d : procStartNmb = %lld, procEndNmb = %lld\n", proc_id, procStartNmb, procEndNmb);
+	}
+
+	for (unsigned long long count = procStartNmb; count < procEndNmb; count++)
+	{
+		if (globalStop == 1) 
+		{
+			if (DEBUG_MODE)
+			{
+				printf("PID: %d, globalStop = 1, count = %lld\n", proc_id, count);
+			}
+			break;
+		}
+
+		int pos = 0;
+		for (unsigned long long tmp = count + 1; tmp > 0 && pos < keyLength; tmp /= (unsigned long long)alphabetLength)
+		{
+			key[pos++] = (char)(tmp % alphabetLength) + asciiMinIndex;
+		}
+
+		encrypt(password, key, encryptedResult);
+
+		if (strcmp(encrypted, encryptedResult) == 0)
+		{
+			if (DEBUG_MODE)
+			{
+				printf("PID: %d, key = \"%s\", count = %lld, FOUND!\n", proc_id, key, count);
+			}
+
+			int localStop = 1;
+			keyResult = strdup(key);
+			
+			//proces, ktory znalazl rozwiazanie, wysyla komunikat do wszystkich (w tym do siebie), zeby zaprzestac iteracji
+			sendTerminateMsg(proc_id, world_size);
+		}
+
+		//kazdy proces sprawdza, czy dostal informacje o ewentualnym przerwaniu petli
+		MPI_Test(&request, &globalStop, MPI_STATUS_IGNORE);
+	}
+
+	free(encryptedResult);
+	free(key);
+	return keyResult;
+}
+
+void assignPermsRangeToProcs(int alphabetLength, int keyLength, unsigned long long *procStartNmb, unsigned long long *procEndNmb)
+{
+	const int root = 0;
+
+	int proc_id;
+	MPI_Comm_rank(MPI_COMM_WORLD, &proc_id);
 
 	if (proc_id == root)
 	{
+		int world_size;
+		MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+		unsigned long long max_perms = 0;
+
 		//iteracje opierają się na maksymalnej liczbie permutacji tablicy z dopuszczalnymi znakami
 		for (int n = 1; n <= keyLength; n++)
 		{
@@ -48,14 +121,13 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExi
 		for (int i = 0; i < world_size; i++)
 		{
 			endNumber += chunkSize;
-			//printf("PID %d : endNumber =  %lld \n", proc_id, endNumber);
 
 			if (i == 0)
 			{
-				procStartNmb = startNumber;
-				procEndNmb = endNumber;
+				*procStartNmb = startNumber;
+				*procEndNmb = endNumber;
 			}
-			else 
+			else
 			{
 				MPI_Send(&startNumber, 1, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD);
 				MPI_Send(&endNumber, 1, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD);
@@ -67,56 +139,15 @@ char * bruteforce(char *password, char *encrypted, int keyLength, int *resultExi
 	else
 	{
 		MPI_Status status;
-		MPI_Recv(&procStartNmb, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
-		MPI_Recv(&procEndNmb, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(procStartNmb, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
+		MPI_Recv(procEndNmb, 1, MPI_UNSIGNED_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
 	}
-	
-	//na tym etapie każdy z procesów wie juz, jaki zakres ma do iteracji
-	char *encryptedResult = malloc(sizeof(char) * (strlen(password) + 1));
-	char *key = malloc(keySize);
-	memset(key, '\0', keySize);
+}
 
-	int localStop = 0;
-	int globalStop;
-	
-	for (unsigned long long count = procStartNmb; count < procEndNmb; count++)
+void sendTerminateMsg(int proc_id, int world_size)
+{
+	for (int i = 0; i < world_size; i++)
 	{
-		//printf("PID: %d, tu jestem!\n", proc_id);
-		if (globalStop == 1) break;
-
-		//printf("PID: %d, tu jestem!\n", proc_id);
-
-		int pos = 0;
-		for (unsigned long long tmp = count + 1; tmp > 0 && pos < keyLength; tmp /= (unsigned long long)alphabetLength)
-		{
-			key[pos++] = (char)(tmp % alphabetLength) + asciiMinIndex;
-		}
-
-		encrypt(password, key, encryptedResult);
-
-		//printf("PID: %d, key = %s\n", proc_id, key);
-
-		if (strcmp(encrypted, encryptedResult) == 0)
-		{
-			if (DEBUG_MODE)
-			{
-				printf("PID: %d, key = \"%s\", count = %lld, FOUND!\n", proc_id, key, count);
-			}
-
-			localStop = 1;
-			keyResult = strdup(key);
-			break;
-		}
-
-		MPI_Request request;
-		int did_recv = 0;
-		MPI_Iallreduce(&localStop, &globalStop, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, &request);
-		MPI_Test(&request, &did_recv, MPI_STATUS_IGNORE);
+		MPI_Send(&proc_id, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
 	}
-
-	free(encryptedResult);
-	free(key);
-
-	*resultExist = globalStop;
-	return keyResult;
 }
